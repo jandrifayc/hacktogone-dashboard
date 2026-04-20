@@ -14,24 +14,41 @@ export default async function handler(req, res) {
 
     const leads = response.results.map(page => {
       const p = page.properties;
+      // Mapping robuste : on cherche plusieurs noms de propriétés possibles
+      const getVal = (propNames) => {
+        for (let name of propNames) {
+          if (p[name]) {
+            if (p[name].rich_text) return p[name].rich_text[0]?.plain_text || '';
+            if (p[name].title) return p[name].title[0]?.plain_text || '';
+            if (p[name].select) return p[name].select.name || '';
+            if (p[name].number) return p[name].number;
+            if (p[name].email) return p[name].email;
+            if (p[name].url) return p[name].url;
+            if (p[name].phone_number) return p[name].phone_number;
+          }
+        }
+        return '';
+      };
+
+      const nomComplet = getVal(['Nom', 'Contact Name']);
       return {
         id: page.id,
-        nom_complet: p.Nom.title[0]?.plain_text || 'Inconnu',
-        prenom: p.Nom.title[0]?.plain_text.split(' ')[0] || '',
-        nom: p.Nom.title[0]?.plain_text.split(' ').slice(1).join(' ') || '',
-        email: p.Email?.email || '',
-        telephone: p.Téléphone?.phone_number || p.Tel?.rich_text[0]?.plain_text || '',
-        entreprise: p.Entreprise?.rich_text[0]?.plain_text || '—',
-        titre: p.Poste?.rich_text[0]?.plain_text || '',
-        secteur: p.Vertical?.rich_text[0]?.plain_text || p.Secteur?.rich_text[0]?.plain_text || '—',
-        priorite: p.Priorité?.select?.name || p.hacktogone_priority?.select?.name || 'B',
-        score: p.Score?.number || 5,
-        pain: p.PainPoint?.rich_text[0]?.plain_text || p.Pain?.rich_text[0]?.plain_text || '',
-        statut: p.Statut?.select?.name || 'New',
-        linkedin: p.LinkedIn?.url || '',
-        ville: p.Ville?.rich_text[0]?.plain_text || 'Paris',
-        region: p.Région?.rich_text[0]?.plain_text || 'National',
-        website: p.Site?.url || p.Website?.url || ''
+        nom_complet: nomComplet,
+        prenom: nomComplet.split(' ')[0] || '',
+        nom: nomComplet.split(' ').slice(1).join(' ') || '',
+        email: getVal(['Email', 'Courriel']),
+        telephone: getVal(['Téléphone', 'Tel', 'Phone']),
+        entreprise: getVal(['Entreprise', 'Company', 'Société']),
+        titre: getVal(['Poste', 'Job Title', 'Titre']),
+        secteur: getVal(['Vertical', 'Secteur', 'Secteur d\'activité']),
+        priorite: getVal(['Priorité', 'hacktogone_priority', 'Prio']) || 'B',
+        score: getVal(['Score', 'Score Hacktogone']) || 5,
+        pain: getVal(['PainPoint', 'Pain', 'Défi IA']),
+        statut: getVal(['Statut', 'Status']) || 'New',
+        linkedin: getVal(['LinkedIn', 'Linkedin URL']),
+        ville: getVal(['Ville', 'City']) || 'Paris',
+        region: getVal(['Région', 'Region']) || 'National',
+        website: getVal(['Site', 'Website', 'Site Web'])
       };
     });
 
