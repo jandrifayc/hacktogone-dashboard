@@ -1,8 +1,19 @@
 const { Client } = require('@notionhq/client');
 
-export default async function handler(req, res) {
-  if (!process.env.NOTION_TOKEN || !process.env.NOTION_DB_CONTACTS) {
-    return res.status(500).json({ error: "Missing environment variables" });
+module.exports = async (req, res) => {
+  // Configurer les headers CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (!process.env.NOTION_TOKEN) {
+    return res.status(500).json({ error: "NOTION_TOKEN non configuré sur Vercel" });
+  }
+  if (!process.env.NOTION_DB_CONTACTS) {
+    return res.status(500).json({ error: "NOTION_DB_CONTACTS non configuré sur Vercel" });
   }
 
   const notion = new Client({ auth: process.env.NOTION_TOKEN });
@@ -29,11 +40,12 @@ export default async function handler(req, res) {
         return '';
       };
 
+      const fullName = getP(['Nom', 'Contact Name']) || 'Inconnu';
       return {
         id: page.id,
-        nom_complet: getP(['Nom', 'Contact Name']) || 'Inconnu',
-        prenom: (getP(['Nom', 'Contact Name']) || '').split(' ')[0],
-        nom: (getP(['Nom', 'Contact Name']) || '').split(' ').slice(1).join(' '),
+        nom_complet: fullName,
+        prenom: fullName.split(' ')[0],
+        nom: fullName.split(' ').slice(1).join(' '),
         email: getP(['Email', 'Courriel']),
         entreprise: getP(['Entreprise', 'Company']),
         secteur: getP(['Vertical', 'Secteur']),
@@ -47,8 +59,13 @@ export default async function handler(req, res) {
       };
     });
 
-    res.status(200).json(leads);
+    return res.status(200).json(leads);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Erreur Notion:", error);
+    return res.status(500).json({ 
+      error: "Erreur lors de la récupération Notion", 
+      details: error.message,
+      code: error.code
+    });
   }
-}
+};
