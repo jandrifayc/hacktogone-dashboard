@@ -1,71 +1,69 @@
 const { Client } = require('@notionhq/client');
 
 module.exports = async (req, res) => {
-  // Configurer les headers CORS
+  // Activation CORS pour le dashboard
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  const token = process.env.NOTION_TOKEN;
+  const dbId = process.env.NOTION_DB_CONTACTS;
+
+  if (!token || !dbId) {
+    return res.status(200).json({ error: "Variables NOTION_TOKEN ou NOTION_DB_CONTACTS manquantes dans Vercel." });
   }
 
-  if (!process.env.NOTION_TOKEN) {
-    return res.status(500).json({ error: "NOTION_TOKEN non configuré sur Vercel" });
-  }
-  if (!process.env.NOTION_DB_CONTACTS) {
-    return res.status(500).json({ error: "NOTION_DB_CONTACTS non configuré sur Vercel" });
-  }
-
-  const notion = new Client({ auth: process.env.NOTION_TOKEN });
+  const notion = new Client({ auth: token });
 
   try {
-    const response = await notion.databases.query({
-      database_id: process.env.NOTION_DB_CONTACTS,
-    });
+    const response = await notion.databases.query({ database_id: dbId });
 
     const leads = response.results.map(page => {
       const p = page.properties;
-      const getP = (names) => {
-        for (let n of names) {
-          if (p[n]) {
-            if (p[n].title) return p[n].title[0]?.plain_text || '';
-            if (p[n].rich_text) return p[n].rich_text[0]?.plain_text || '';
-            if (p[n].select) return p[n].select.name || '';
-            if (p[n].number) return p[n].number;
-            if (p[n].email) return p[n].email;
-            if (p[n].url) return p[n].url;
-            if (p[n].phone_number) return p[n].phone_number;
-          }
-        }
+      
+      // Fonction utilitaire ultra-robuste pour extraire les données
+      const getVal = (propName) => {
+        const prop = p[propName];
+        if (!prop) return '';
+        try {
+          if (prop.title) return prop.title[0]?.plain_text || '';
+          if (prop.rich_text) return prop.rich_text[0]?.plain_text || '';
+          if (prop.select) return prop.select.name || '';
+          if (prop.number) return String(prop.number || '0');
+          if (prop.email) return prop.email || '';
+          if (prop.url) return prop.url || '';
+          if (prop.phone_number) return prop.phone_number || '';
+        } catch (e) { return ''; }
         return '';
       };
 
-      const fullName = getP(['Nom', 'Contact Name']) || 'Inconnu';
+      const fullName = getVal('Nom') || 'Inconnu';
       return {
         id: page.id,
         nom_complet: fullName,
         prenom: fullName.split(' ')[0],
         nom: fullName.split(' ').slice(1).join(' '),
-        email: getP(['Email', 'Courriel']),
-        entreprise: getP(['Entreprise', 'Company']),
-        secteur: getP(['Vertical', 'Secteur']),
-        priorite: getP(['Priorité', 'hacktogone_priority']) || 'B',
-        statut: getP(['Statut', 'Status']) || 'New',
-        score: getP(['Score']) || 5,
-        pain: getP(['PainPoint', 'Pain']),
-        linkedin: getP(['LinkedIn', 'Linkedin URL']),
-        telephone: getP(['Téléphone', 'Tel']),
-        website: getP(['Site', 'Website'])
+        email: getVal('Email'),
+        entreprise: getVal('Entreprise'),
+        secteur: getVal('Vertical') || getVal('Secteur') || '—',
+        priorite: getVal('Priorité') || 'B',
+        statut: getVal('Statut') || 'New',
+        score: getVal('Score') || '5',
+        pain: getVal('PainPoint') || getVal('Pain') || '',
+        linkedin: getVal('LinkedIn'),
+        telephone: getVal('Téléphone') || getVal('Tel') || '',
+        website: getVal('Site') || getVal('Website') || '',
+        ville: getVal('Ville') || 'Paris',
+        region: getVal('Région') || 'National'
       };
     });
 
     return res.status(200).json(leads);
   } catch (error) {
-    console.error("Erreur Notion:", error);
-    return res.status(500).json({ 
-      error: "Erreur lors de la récupération Notion", 
-      details: error.message,
-      code: error.code
+    console.error(error);
+    return res.status(200).json({ 
+      error: "Impossible de joindre Notion", 
+      details: error.message 
     });
   }
 };
