@@ -6,6 +6,6 @@
     "@notionhq/client": "^2.2.15"
   },
   "engines": {
-    "node": "18.x"
+    "node": "24.x"
   }
 }
